@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Task } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, CheckCircle, Circle, Clock, ArrowUpDown } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, CheckCircle, Circle, Clock, ArrowUpDown, Flag, Calendar, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DragDropContext, Draggable, Droppable, DropResult } from 'react-beautiful-dnd';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 
 interface TaskListProps {
   projectId: string;
@@ -29,12 +31,22 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Task['status']>('todo');
+  const [priority, setPriority] = useState<Task['priority']>('medium');
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [labelInput, setLabelInput] = useState('');
   const [isViewMode, setIsViewMode] = useState<'kanban' | 'list'>('list');
+
+  const availableLabels = ['frontend', 'backend', 'bug', 'feature', 'design', 'documentation', 'testing', 'meeting', 'research'];
 
   const resetForm = () => {
     setTitle('');
     setDescription('');
     setStatus('todo');
+    setPriority('medium');
+    setDueDate(null);
+    setLabels([]);
+    setLabelInput('');
     setSelectedTask(null);
   };
 
@@ -48,6 +60,9 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
     setTitle(task.title);
     setDescription(task.description);
     setStatus(task.status);
+    setPriority(task.priority || 'medium');
+    setDueDate(task.due_date);
+    setLabels(task.labels || []);
     setIsEditModalOpen(true);
   };
 
@@ -58,7 +73,14 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createTask(projectId, title, description, status, 'task');
+    const taskId = await createTask(projectId, title, description, status, 'task');
+    if (taskId) {
+      await updateTask(taskId, { 
+        priority,
+        due_date: dueDate,
+        labels: labels.length > 0 ? labels : null
+      });
+    }
     setIsAddModalOpen(false);
     resetForm();
   };
@@ -66,7 +88,14 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
   const handleUpdateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedTask) {
-      await updateTask(selectedTask.id, { title, description, status });
+      await updateTask(selectedTask.id, { 
+        title, 
+        description, 
+        status,
+        priority,
+        due_date: dueDate,
+        labels: labels.length > 0 ? labels : null
+      });
       setIsEditModalOpen(false);
       resetForm();
     }
@@ -117,6 +146,57 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
 
   const getTasksByStatus = (status: Task['status']) => {
     return tasks.filter(task => task.status === status);
+  };
+
+  const getPriorityColor = (priority: Task['priority']) => {
+    switch(priority) {
+      case 'low': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+      case 'medium': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+      case 'high': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
+      case 'urgent': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+    }
+  };
+
+  const isTaskOverdue = (task: Task) => {
+    if (!task.due_date) return false;
+    const dueDate = new Date(task.due_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Compare dates only, not time
+    return dueDate < today && task.status !== 'completed';
+  };
+
+  const formatDueDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
+  const addLabel = () => {
+    if (labelInput.trim() && !labels.includes(labelInput.trim())) {
+      setLabels([...labels, labelInput.trim()]);
+      setLabelInput('');
+    }
+  };
+
+  const removeLabel = (label: string) => {
+    setLabels(labels.filter(l => l !== label));
   };
 
   const renderTaskItem = (task: Task, index: number) => (
@@ -192,8 +272,31 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
                   </Button>
                 </div>
               </div>
+              {task.due_date && (
+                <div className={`flex items-center text-xs mt-2 ${isTaskOverdue(task) ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  <Calendar className="h-3 w-3 mr-1" />
+                  Due: {formatDueDate(task.due_date)}
+                  {isTaskOverdue(task) && ' (overdue)'}
+                </div>
+              )}
             </div>
           </div>
+          {task.priority && (
+            <Badge className={`${getPriorityColor(task.priority)} ml-1`}>
+              <Flag className="h-3 w-3 mr-1" />
+              {task.priority}
+            </Badge>
+          )}
+          {task.labels && task.labels.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {task.labels.map(label => (
+                <Badge key={label} variant="outline" className="text-xs px-2 py-0">
+                  <Tag className="h-3 w-3 mr-1" />
+                  {label}
+                </Badge>
+              ))}
+            </div>
+          )}
         </motion.div>
       )}
     </Draggable>
@@ -300,7 +403,7 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
 
       {/* Add Task Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Task</DialogTitle>
             <DialogDescription>
@@ -308,31 +411,32 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateTask}>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
                 <Label htmlFor="title">Title</Label>
                 <Input
                   id="title"
+                  placeholder="Task title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Task title"
                   required
                 />
               </div>
-              <div className="space-y-2">
+              <div className="grid gap-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
+                  placeholder="Task description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Task description"
+                  className="min-h-[100px]"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="grid gap-2">
                 <Label htmlFor="status">Status</Label>
-                <Select value={status} onValueChange={(value) => setStatus(value as Task['status'])}>
+                <Select value={status} onValueChange={(value: Task['status']) => setStatus(value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder="Select a status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todo">To Do</SelectItem>
@@ -341,8 +445,114 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select value={priority || 'medium'} onValueChange={(value: Task['priority']) => setPriority(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-blue-500" />
+                        Low
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="medium">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-green-500" />
+                        Medium
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="high">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-orange-500" />
+                        High
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="urgent">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-red-500" />
+                        Urgent
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="dueDate">Due Date</Label>
+                <div className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={dueDate || ''}
+                    onChange={(e) => setDueDate(e.target.value || null)}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Labels</Label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {labels.map(label => (
+                    <Badge key={label} variant="outline" className="flex items-center gap-1">
+                      {label}
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-4 w-4 p-0 ml-1"
+                        onClick={() => removeLabel(label)}
+                      >
+                        ×
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input 
+                    value={labelInput} 
+                    onChange={(e) => setLabelInput(e.target.value)} 
+                    placeholder="Add a label" 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addLabel();
+                      }
+                    }}
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" size="sm">
+                        <Tag className="h-4 w-4 mr-1" />
+                        Suggestions
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0" align="end">
+                      <Command>
+                        <CommandInput placeholder="Search labels..." />
+                        <CommandEmpty>No label found.</CommandEmpty>
+                        <CommandGroup>
+                          {availableLabels.map(label => (
+                            <CommandItem
+                              key={label}
+                              onSelect={() => {
+                                if (!labels.includes(label)) {
+                                  setLabels([...labels, label]);
+                                }
+                              }}
+                            >
+                              {label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
             </div>
-            <DialogFooter className="mt-4">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
                 Cancel
               </Button>
@@ -394,6 +604,112 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-priority">Priority</Label>
+                <Select value={priority || 'medium'} onValueChange={(value: Task['priority']) => setPriority(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-blue-500" />
+                        Low
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="medium">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-green-500" />
+                        Medium
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="high">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-orange-500" />
+                        High
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="urgent">
+                      <div className="flex items-center">
+                        <Flag className="h-4 w-4 mr-2 text-red-500" />
+                        Urgent
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-dueDate">Due Date</Label>
+                <div className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <Input
+                    id="edit-dueDate"
+                    type="date"
+                    value={dueDate || ''}
+                    onChange={(e) => setDueDate(e.target.value || null)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Labels</Label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {labels.map(label => (
+                    <Badge key={label} variant="outline" className="flex items-center gap-1">
+                      {label}
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-4 w-4 p-0 ml-1"
+                        onClick={() => removeLabel(label)}
+                      >
+                        ×
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input 
+                    value={labelInput} 
+                    onChange={(e) => setLabelInput(e.target.value)} 
+                    placeholder="Add a label" 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addLabel();
+                      }
+                    }}
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" size="sm">
+                        <Tag className="h-4 w-4 mr-1" />
+                        Suggestions
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0" align="end">
+                      <Command>
+                        <CommandInput placeholder="Search labels..." />
+                        <CommandEmpty>No label found.</CommandEmpty>
+                        <CommandGroup>
+                          {availableLabels.map(label => (
+                            <CommandItem
+                              key={label}
+                              onSelect={() => {
+                                if (!labels.includes(label)) {
+                                  setLabels([...labels, label]);
+                                }
+                              }}
+                            >
+                              {label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
             <DialogFooter className="mt-4">
