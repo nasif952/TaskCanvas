@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase, withBackoff } from '@/lib/supabase';
 import { Note } from '@/lib/types';
@@ -34,7 +33,7 @@ export function useNoteOperations() {
     }
   };
 
-  const createNote = async (projectId: string, userId: string, content: any): Promise<string | null> => {
+  const createNote = async (projectId: string, userId: string, content: any, title: string | null = null): Promise<string | null> => {
     try {
       const { data, error } = await withBackoff(async () => {
         return await supabase
@@ -43,6 +42,7 @@ export function useNoteOperations() {
             project_id: projectId,
             content,
             created_by: userId,
+            title,
           }])
           .select()
           .single();
@@ -67,12 +67,16 @@ export function useNoteOperations() {
     }
   };
 
-  const updateNote = async (id: string, content: any) => {
+  const updateNote = async (id: string, content: any, title: string | null = null) => {
     try {
       const { error } = await withBackoff(async () => {
         return await supabase
           .from('notes')
-          .update({ content, updated_at: new Date().toISOString() })
+          .update({ 
+            content, 
+            title,
+            updated_at: new Date().toISOString() 
+          })
           .eq('id', id);
       });
         

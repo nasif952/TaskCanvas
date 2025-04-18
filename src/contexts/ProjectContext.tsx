@@ -1,19 +1,22 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Project, ProjectWithCounts, Note, Task } from '@/lib/types';
+import { Project, ProjectWithCounts, Note, Task, ChatMessage } from '@/lib/types';
 import { useAuth } from './AuthContext';
 import { useProjectOperations } from '@/hooks/useProjectOperations';
 import { useNoteOperations } from '@/hooks/useNoteOperations';
 import { useTaskOperations } from '@/hooks/useTaskOperations';
+import { useChatOperations } from '@/hooks/useChatOperations';
 
 interface ProjectContextType {
   projects: ProjectWithCounts[];
   currentProject: Project | null;
   projectNotes: Note[];
   projectTasks: Task[];
+  projectMessages: ChatMessage[];
   loadingProjects: boolean;
   loadingProject: boolean;
   loadingNotes: boolean;
   loadingTasks: boolean;
+  loadingMessages: boolean;
   setLoadingProject: (loading: boolean) => void;
   fetchProjects: () => Promise<void>;
   fetchProject: (id: string) => Promise<void>;
@@ -21,13 +24,15 @@ interface ProjectContextType {
   updateProject: (id: string, title: string, description: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   fetchProjectNotes: (projectId: string) => Promise<void>;
-  createNote: (projectId: string, content: any) => Promise<string | null>;
-  updateNote: (id: string, content: any) => Promise<void>;
+  createNote: (projectId: string, content: any, title?: string | null) => Promise<string | null>;
+  updateNote: (id: string, content: any, title?: string | null) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   fetchProjectTasks: (projectId: string) => Promise<void>;
   createTask: (projectId: string, title: string, description: string, status: Task['status'], taskType: Task['task_type'], parentTaskId?: string) => Promise<string | null>;
   updateTask: (id: string, updates: Partial<Omit<Task, 'id' | 'created_at' | 'created_by'>>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
+  fetchProjectMessages: (projectId: string) => Promise<void>;
+  sendMessage: (projectId: string, content: string) => Promise<string | null>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -37,7 +42,8 @@ const inFlightRequests: Record<string, boolean> = {
   projects: false,
   project: false,
   notes: false,
-  tasks: false
+  tasks: false,
+  messages: false
 };
 
 // Add cooldown to prevent too many requests in a short time
@@ -45,7 +51,8 @@ const requestCooldowns: Record<string, number> = {
   projects: 0,
   project: 0,
   notes: 0,
-  tasks: 0
+  tasks: 0,
+  messages: 0
 };
 
 // Cooldown time in milliseconds
@@ -56,11 +63,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [projectNotes, setProjectNotes] = useState<Note[]>([]);
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
+  const [projectMessages, setProjectMessages] = useState<ChatMessage[]>([]);
   
   const { user } = useAuth();
   const projectOps = useProjectOperations();
   const noteOps = useNoteOperations();
   const taskOps = useTaskOperations();
+  const chatOps = useChatOperations();
 
   const fetchProjects = async () => {
     if (!user || inFlightRequests.projects) return;
@@ -171,32 +180,25 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const createNote = async (projectId: string, content: any) => {
-    if (!user) return null;
-    const noteId = await noteOps.createNote(projectId, user.id, content);
+  const createNote = async (projectId: string, content: any, title: string | null = null) => {
+    if (!user) throw new Error('User not authenticated');
+    
+    const noteId = await noteOps.createNote(projectId, user.id, content, title);
+    
     if (noteId) {
-      setProjects(prev => 
-        prev.map(project => 
-          project.id === projectId 
-            ? { ...project, note_count: project.note_count + 1 } 
-            : project
-        )
-      );
-      await fetchProjectNotes(projectId);
+      // Refresh notes for the current project
+      fetchProjectNotes(projectId);
     }
+    
     return noteId;
   };
 
-  const updateNote = async (id: string, content: any) => {
-    const success = await noteOps.updateNote(id, content);
-    if (success) {
-      setProjectNotes(prev => 
-        prev.map(note => 
-          note.id === id 
-            ? { ...note, content, updated_at: new Date().toISOString() } 
-            : note
-        )
-      );
+  const updateNote = async (id: string, content: any, title: string | null = null) => {
+    const success = await noteOps.updateNote(id, content, title);
+    
+    if (success && currentProject && currentProject.id) {
+      // Refresh notes for the current project
+      fetchProjectNotes(currentProject.id);
     }
   };
 
@@ -286,6 +288,39 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const fetchProjectMessages = async (projectId: string) => {
+    if (inFlightRequests.messages) return;
+    
+    // Check cooldown
+    const now = Date.now();
+    if (now < requestCooldowns.messages) {
+      return;
+    }
+    
+    try {
+      inFlightRequests.messages = true;
+      requestCooldowns.messages = now + COOLDOWN_TIME;
+      
+      const messages = await chatOps.fetchProjectMessages(projectId);
+      setProjectMessages(messages);
+    } finally {
+      inFlightRequests.messages = false;
+    }
+  };
+
+  const sendMessage = async (projectId: string, content: string) => {
+    if (!user) throw new Error('User not authenticated');
+    
+    const messageId = await chatOps.sendMessage(projectId, user.id, content);
+    
+    if (messageId) {
+      // Refresh messages for the current project
+      fetchProjectMessages(projectId);
+    }
+    
+    return messageId;
+  };
+
   useEffect(() => {
     if (user) {
       fetchProjects();
@@ -294,6 +329,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setCurrentProject(null);
       setProjectNotes([]);
       setProjectTasks([]);
+      setProjectMessages([]);
     }
   }, [user]);
 
@@ -302,10 +338,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     currentProject,
     projectNotes,
     projectTasks,
+    projectMessages,
     loadingProjects: projectOps.loadingProjects,
     loadingProject: projectOps.loadingProject,
     loadingNotes: noteOps.loadingNotes,
     loadingTasks: taskOps.loadingTasks,
+    loadingMessages: chatOps.loadingMessages,
     setLoadingProject: projectOps.setLoadingProject,
     fetchProjects,
     fetchProject,
@@ -320,6 +358,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     createTask,
     updateTask,
     deleteTask,
+    fetchProjectMessages,
+    sendMessage,
   };
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

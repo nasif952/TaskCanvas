@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, Share2, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import TaskList from '@/components/tasks/TaskList';
 import NoteList from '@/components/notes/NoteList';
+import ChatList from '@/components/chat/ChatList';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -35,6 +36,9 @@ const ProjectDetail: React.FC = () => {
     fetchProjectTasks,
     projectTasks,
     loadingTasks,
+    fetchProjectMessages,
+    projectMessages,
+    loadingMessages,
     updateProject,
     deleteProject
   } = useProject();
@@ -203,7 +207,8 @@ const ProjectDetail: React.FC = () => {
         if (projectData) {
           await Promise.all([
             fetchProjectNotes(id),
-            fetchProjectTasks(id)
+            fetchProjectTasks(id),
+            fetchProjectMessages(id)
           ]);
         }
         
@@ -240,7 +245,7 @@ const ProjectDetail: React.FC = () => {
         }
       }
     }
-  }, [id, user, fetchProject, fetchProjectNotes, fetchProjectTasks, fetchAttempts, toast, checkSharedStatus, maxFetchAttempts]);
+  }, [id, user, fetchProject, fetchProjectNotes, fetchProjectTasks, fetchProjectMessages, fetchAttempts, toast, checkSharedStatus, maxFetchAttempts]);
 
   // Initial fetch when component mounts
   useEffect(() => {
@@ -468,6 +473,7 @@ const ProjectDetail: React.FC = () => {
           <TabsList>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
           </TabsList>
           <TabsContent value="tasks" className="mt-6">
             <TaskList 
@@ -481,6 +487,13 @@ const ProjectDetail: React.FC = () => {
               projectId={id} 
               notes={projectNotes}
               loading={loadingNotes}
+            />
+          </TabsContent>
+          <TabsContent value="chat" className="mt-6">
+            <ChatList 
+              projectId={id} 
+              messages={projectMessages}
+              loading={loadingMessages}
             />
           </TabsContent>
         </Tabs>
