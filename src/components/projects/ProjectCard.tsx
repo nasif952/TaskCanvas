@@ -33,7 +33,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
     return null;
   }
 
-  const { id, title, description, updated_at, note_count, task_count } = project;
+  const { id, title, description, updated_at } = project;
   
   // Extract additional properties from extended project
   const isDeleted = Boolean((project as any).is_deleted);
@@ -64,8 +64,18 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   }
   
   const displayDescription = description || 'No description';
-  const displayNoteCount = typeof note_count === 'number' ? note_count : 0;
-  const displayTaskCount = typeof task_count === 'number' ? task_count : 0;
+  
+  // Ensure note_count and task_count are always numeric values
+  const safeGetCount = (value: any): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'object' && value !== null && 'count' in value) return value.count || 0;
+    const parsed = Number(value);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+  
+  const displayNoteCount = safeGetCount(project.note_count);
+  const displayTaskCount = safeGetCount(project.task_count);
 
   // Generate a pseudo-random color for the card gradient based on the project id
   const colorIndex = id.charCodeAt(0) % 5;

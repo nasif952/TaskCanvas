@@ -52,14 +52,23 @@ const Dashboard: React.FC = () => {
     fetchPendingInvitations();
   };
 
+  // Helper to safely get a count value
+  const safeGetCount = (value: any): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'object' && value !== null && 'count' in value) return value.count || 0;
+    const parsed = Number(value);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   // Calculate some stats for the dashboard
   const totalProjects = projects.length;
   const totalSharedProjects = sharedProjects.length;
   const totalInvitations = pendingInvitations.length;
   
   // Get counts of notes and tasks across all projects
-  const totalNotes = projects.reduce((sum, project) => sum + (project.note_count || 0), 0);
-  const totalTasks = projects.reduce((sum, project) => sum + (project.task_count || 0), 0);
+  const totalNotes = projects.reduce((sum, project) => sum + safeGetCount(project.note_count), 0);
+  const totalTasks = projects.reduce((sum, project) => sum + safeGetCount(project.task_count), 0);
 
   // Generate time-of-day based greeting
   const getGreeting = () => {

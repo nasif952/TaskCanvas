@@ -184,7 +184,7 @@ const Index: React.FC = () => {
           >
             <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
               <img 
-                src="/mockup-dashboard.png" 
+                src="/main_img.png" 
                 alt="TaskCanvas Dashboard" 
                 className="w-full h-auto"
                 onError={(e) => {

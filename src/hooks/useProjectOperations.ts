@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Project, ProjectWithCounts } from '@/lib/types';
@@ -17,6 +16,35 @@ const fetchWithRetry = async (fetcher: () => Promise<any>, maxRetries = 2) => {
       await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(1.5, retries)));
     }
   }
+};
+
+// Helper to safely extract count values from Supabase response
+const normalizeCount = (countValue: any): number => {
+  if (countValue === null || countValue === undefined) {
+    return 0;
+  }
+  
+  if (typeof countValue === 'number') {
+    return countValue;
+  }
+  
+  if (typeof countValue === 'object') {
+    // Handle both PostgreSQL count objects {count: number} and aggregate objects
+    if ('count' in countValue && typeof countValue.count === 'number') {
+      return countValue.count;
+    }
+    
+    // Try to extract a numeric value if present
+    for (const key in countValue) {
+      if (typeof countValue[key] === 'number') {
+        return countValue[key];
+      }
+    }
+  }
+  
+  // Default fallback - try to convert to number or return 0
+  const parsed = Number(countValue);
+  return isNaN(parsed) ? 0 : parsed;
 };
 
 export function useProjectOperations() {
@@ -42,15 +70,11 @@ export function useProjectOperations() {
         
       if (error) throw error;
       
-      // Process the counts to ensure they are numbers, not objects
+      // Process the counts to ensure they are always numbers
       const projectsWithCounts: ProjectWithCounts[] = data.map(project => ({
         ...project,
-        note_count: typeof project.note_count === 'object' && project.note_count !== null 
-          ? (project.note_count.count || 0) 
-          : (project.note_count || 0),
-        task_count: typeof project.task_count === 'object' && project.task_count !== null 
-          ? (project.task_count.count || 0) 
-          : (project.task_count || 0)
+        note_count: normalizeCount(project.note_count),
+        task_count: normalizeCount(project.task_count)
       }));
       
       return projectsWithCounts;
