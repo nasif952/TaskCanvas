@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Task } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, CheckCircle, Circle, Clock } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, CheckCircle, Circle, Clock, ArrowUpDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -12,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useProject } from '@/contexts/ProjectContext';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { motion, AnimatePresence } from 'framer-motion';
+import { DragDropContext, Draggable, Droppable, DropResult } from 'react-beautiful-dnd';
 
 interface TaskListProps {
   projectId: string;
@@ -28,6 +29,7 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Task['status']>('todo');
+  const [isViewMode, setIsViewMode] = useState<'kanban' | 'list'>('list');
 
   const resetForm = () => {
     setTitle('');
@@ -82,6 +84,24 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
     await updateTask(taskId, { status: newStatus });
   };
 
+  const handleDragEnd = (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    // If there's no destination or the item is dropped in the same place
+    if (!destination || 
+        (destination.droppableId === source.droppableId && 
+         destination.index === source.index)) {
+      return;
+    }
+
+    // Extract the status from the droppable id
+    const newStatus = destination.droppableId as Task['status'];
+    
+    // Find the task and update its status
+    const taskId = draggableId;
+    handleStatusChange(taskId, newStatus);
+  };
+
   const getStatusIcon = (status: Task['status']) => {
     switch (status) {
       case 'todo':
@@ -94,6 +114,141 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
         return null;
     }
   };
+
+  const getTasksByStatus = (status: Task['status']) => {
+    return tasks.filter(task => task.status === status);
+  };
+
+  const renderTaskItem = (task: Task, index: number) => (
+    <Draggable key={task.id} draggableId={task.id} index={index}>
+      {(provided, snapshot) => (
+        <motion.div
+          layout
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className={`p-4 border rounded-md ${snapshot.isDragging ? 'shadow-lg' : 'hover:shadow-sm'} transition-all bg-card`}
+          style={{
+            ...provided.draggableProps.style,
+            transformOrigin: 'center',
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <button 
+              className={`mt-1 flex-shrink-0 ${
+                task.status === 'completed' ? 'text-green-500' : 
+                task.status === 'in-progress' ? 'text-amber-500' : 'text-muted-foreground'
+              }`}
+              onClick={() => {
+                const nextStatus = task.status === 'todo' ? 'in-progress' : 
+                                  task.status === 'in-progress' ? 'completed' : 'todo';
+                handleStatusChange(task.id, nextStatus);
+              }}
+            >
+              {getStatusIcon(task.status)}
+            </button>
+            <div className="flex-grow min-w-0">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className={`font-medium ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
+                    {task.title}
+                  </h4>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {task.description || 'No description'}
+                  </p>
+                </div>
+                <Badge 
+                  className={`ml-2 capitalize ${
+                    task.status === 'todo' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' : 
+                    task.status === 'in-progress' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300' : 
+                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                  }`}
+                >
+                  {task.status.replace('-', ' ')}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center mt-4">
+                <span className="text-xs text-muted-foreground">
+                  Updated {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
+                </span>
+                <div className="flex space-x-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleEditClick(task)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteClick(task)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </Draggable>
+  );
+
+  const renderKanbanBoard = () => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+      <DragDropContext onDragEnd={handleDragEnd}>
+        {(['todo', 'in-progress', 'completed'] as const).map((columnStatus) => (
+          <div key={columnStatus} className="bg-muted/40 p-4 rounded-md">
+            <h3 className="font-medium mb-3 capitalize flex items-center">
+              {getStatusIcon(columnStatus)}
+              <span className="ml-2">{columnStatus.replace('-', ' ')}</span>
+              <Badge variant="outline" className="ml-2">{getTasksByStatus(columnStatus).length}</Badge>
+            </h3>
+            <Droppable droppableId={columnStatus}>
+              {(provided) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className="space-y-3 min-h-[200px]"
+                >
+                  <AnimatePresence>
+                    {getTasksByStatus(columnStatus).map((task, index) => renderTaskItem(task, index))}
+                  </AnimatePresence>
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </div>
+        ))}
+      </DragDropContext>
+    </div>
+  );
+
+  const renderListView = () => (
+    <DragDropContext onDragEnd={handleDragEnd}>
+      {(['todo', 'in-progress', 'completed'] as const).map((columnStatus) => (
+        <Droppable key={columnStatus} droppableId={columnStatus}>
+          {(provided) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className="space-y-3 mt-4"
+            >
+              <AnimatePresence>
+                {getTasksByStatus(columnStatus).map((task, index) => renderTaskItem(task, index))}
+              </AnimatePresence>
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      ))}
+    </DragDropContext>
+  );
 
   if (loading) {
     return (
@@ -111,81 +266,36 @@ const TaskList: React.FC<TaskListProps> = ({ projectId, tasks, loading }) => {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">Tasks</h3>
-        <Button onClick={handleAddClick} variant="outline" size="sm">
-          <PlusCircle className="h-4 w-4 mr-1" />
-          Add Task
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsViewMode(isViewMode === 'list' ? 'kanban' : 'list')}
+          >
+            <ArrowUpDown className="h-4 w-4 mr-1" />
+            {isViewMode === 'list' ? 'Kanban View' : 'List View'}
+          </Button>
+          <Button onClick={handleAddClick} variant="default" size="sm">
+            <PlusCircle className="h-4 w-4 mr-1" />
+            Add Task
+          </Button>
+        </div>
       </div>
 
       {tasks.length === 0 ? (
-        <div className="text-center py-8 border border-dashed rounded-md">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center py-12 border border-dashed rounded-md"
+        >
           <p className="text-muted-foreground">No tasks yet. Click "Add Task" to create one.</p>
-        </div>
+          <Button onClick={handleAddClick} variant="outline" size="sm" className="mt-4">
+            <PlusCircle className="h-4 w-4 mr-1" />
+            Add Your First Task
+          </Button>
+        </motion.div>
       ) : (
-        <div className="space-y-2">
-          {tasks.map((task) => (
-            <div key={task.id} className="p-4 border rounded-md hover:shadow-sm transition-shadow">
-              <div className="flex items-start gap-3">
-                <button 
-                  className={`mt-1 flex-shrink-0 ${
-                    task.status === 'completed' ? 'text-green-500' : 
-                    task.status === 'in-progress' ? 'text-amber-500' : 'text-muted-foreground'
-                  }`}
-                  onClick={() => {
-                    const nextStatus = task.status === 'todo' ? 'in-progress' : 
-                                      task.status === 'in-progress' ? 'completed' : 'todo';
-                    handleStatusChange(task.id, nextStatus);
-                  }}
-                >
-                  {getStatusIcon(task.status)}
-                </button>
-                <div className="flex-grow min-w-0">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className={`font-medium ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
-                        {task.title}
-                      </h4>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {task.description || 'No description'}
-                      </p>
-                    </div>
-                    <Badge 
-                      className={`ml-2 capitalize ${
-                        task.status === 'todo' ? 'task-status-todo' : 
-                        task.status === 'in-progress' ? 'task-status-in-progress' : 
-                        'task-status-completed'
-                      }`}
-                    >
-                      {task.status.replace('-', ' ')}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center mt-4">
-                    <span className="text-xs text-muted-foreground">
-                      Updated {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
-                    </span>
-                    <div className="flex space-x-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleEditClick(task)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteClick(task)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        isViewMode === 'kanban' ? renderKanbanBoard() : renderListView()
       )}
 
       {/* Add Task Modal */}

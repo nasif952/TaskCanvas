@@ -1,0 +1,90 @@
+/* Mobile-specific fixes */
+
+/* Prevent zoom on input focus on iOS */
+@media not all and (min-resolution:.001dpcm) { 
+  @supports (-webkit-appearance:none) {
+    input, 
+    select, 
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* Fix for overscroll behavior */
+html, body {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Improve tap targets for mobile */
+button, 
+[role="button"], 
+input, 
+select, 
+a {
+  touch-action: manipulation;
+}
+
+/* Fix for mobile vh issue */
+:root {
+  --app-height: 100%;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .min-h-screen {
+    min-height: var(--app-height);
+  }
+}
+
+/* Fix 100vh issues on mobile browsers */
+@media (max-width: 768px) {
+  html, body, #root {
+    height: var(--app-height);
+  }
+}
+
+/* Improve tap highlight */
+a, button, [role="button"] {
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+/* Fix mobile scrolling and positioning */
+.fixed-mobile-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+}
+
+/* Adjust font size for better readability on small screens */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+/* Fix for dropdown menus getting cut off at screen edges */
+.dropdown-menu-mobile-fix {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Add padding to bottom when fixed elements exist */
+.has-fixed-bottom {
+  padding-bottom: 4rem;
+}
+
+/* Fix for overflow issues in flex containers */
+.mobile-overflow-fix {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Safari iOS fix for position fixed */
+@supports (-webkit-touch-callout: none) {
+  .fixed {
+    position: sticky;
+  }
+} 

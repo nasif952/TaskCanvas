@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - TaskCanvas</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366F1">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f9fafb;
+      color: #111827;
+      text-align: center;
+    }
+    
+    .container {
+      max-width: 90%;
+      width: 480px;
+      padding: 2rem;
+      background-color: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    
+    .logo {
+      margin-bottom: 1.5rem;
+      width: 80px;
+      height: 80px;
+    }
+    
+    h1 {
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    
+    p {
+      margin-bottom: 1.5rem;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+    
+    .button {
+      display: inline-block;
+      background-color: #6366F1;
+      color: white;
+      font-weight: 500;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.375rem;
+      text-decoration: none;
+      transition: background-color 0.15s ease-in-out;
+    }
+    
+    .button:hover {
+      background-color: #4F46E5;
+    }
+    
+    .offline-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: #6366F1;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #111827;
+        color: #f9fafb;
+      }
+      
+      .container {
+        background-color: #1f2937;
+      }
+      
+      p {
+        color: #9ca3af;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="offline-icon">📶</div>
+    <h1>You're offline</h1>
+    <p>It looks like you've lost your internet connection. TaskCanvas requires an internet connection to work properly.</p>
+    <p>Some of your previously accessed content may be available, but for the full experience, please reconnect to the internet.</p>
+    <a href="/" class="button">Try Again</a>
+  </div>
+  
+  <script>
+    // Check if we come back online
+    window.addEventListener('online', () => {
+      window.location.reload();
+    });
+    
+    // Try to reload the page when the button is clicked
+    document.querySelector('.button').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.reload();
+    });
+  </script>
+</body>
+</html> 

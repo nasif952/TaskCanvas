@@ -1,0 +1,10 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="128" fill="#6366F1"/>
+  <path d="M144 240H368" stroke="white" stroke-width="24" stroke-linecap="round"/>
+  <path d="M144 304H304" stroke="white" stroke-width="24" stroke-linecap="round"/>
+  <path d="M176 176L208 208L256 160" stroke="white" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M144 352H240" stroke="white" stroke-width="24" stroke-linecap="round"/>
+  
+  <!-- Board outline -->
+  <rect x="112" y="128" width="288" height="256" rx="16" stroke="white" stroke-width="24" stroke-linecap="round"/>
+</svg> 
