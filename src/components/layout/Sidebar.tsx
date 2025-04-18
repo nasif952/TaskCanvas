@@ -15,7 +15,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 1024);
@@ -41,8 +41,8 @@ export default function Sidebar() {
 
   const handleSignOut = async () => {
     try {
-      await logout();
-      navigate("/login");
+      await signOut();
+      navigate("/");
     } catch (error) {
       console.error("Error signing out: ", error);
     }
