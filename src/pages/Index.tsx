@@ -463,7 +463,7 @@ const Index: React.FC = () => {
           </div>
           <div className="border-t border-gray-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-500">
-              © {new Date().getFullYear()} TaskCanvas. All rights reserved.
+              © {new Date().getFullYear()} TaskCanvas. Created by Nasif Ahmed Nafi. All rights reserved.
             </p>
             <div className="mt-6 md:mt-0 flex space-x-6">
               <a href="#" className="text-gray-400 hover:text-gray-500 transition-colors">
